@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>인터벌 타이머 · 운동 알람</title>
+<meta name="description" content="운동/휴식 시간을 라운드별로 자유롭게 설정하고 음성 안내로 알려주는 인터벌 운동 타이머">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!--
+  ==========================================================================
+  Google AdSense 연동 안내
+  1) <head>에 발급받은 client 코드가 포함된 스크립트를 추가하세요:
+     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+  2) 본문의 <div class="ad-slot"> 안에 아래 형태의 <ins> 태그를 넣고
+     data-ad-client / data-ad-slot 값을 본인 것으로 교체하세요.
+  ==========================================================================
+-->
+
+<style>
+  :root{
+    --bg:#12161a;
+    --surface:#1c2229;
+    --surface-2:#262e37;
+    --surface-3:#323b46;
+    --text:#edeff2;
+    --text-dim:#8b95a1;
+    --text-faint:#5c6570;
+    --work:#ff5a45;
+    --work-dim:#4a2b26;
+    --rest:#33d6a6;
+    --rest-dim:#1f3d36;
+    --prep:#ffc94a;
+    --prep-dim:#42391f;
+    --danger:#ff5a45;
+    --radius:16px;
+    --ring-size: min(72vw, 320px);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; overscroll-behavior:none;
+  }
+  button{ font-family:inherit; }
+  ::selection{ background:var(--work); color:#fff; }
+
+  .app{ max-width:480px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column; position:relative; }
+
+  .ad-slot{
+    margin:14px 16px 0; padding:10px; border:1px dashed var(--surface-3); border-radius:10px;
+    text-align:center; color:var(--text-faint); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    min-height:52px; display:flex; align-items:center; justify-content:center;
+  }
+
+  header.top{ padding:20px 20px 4px; }
+  header.top h1{ font-size:22px; font-weight:800; margin:0 0 2px; letter-spacing:-0.01em; }
+  header.top p{ margin:0; color:var(--text-dim); font-size:13px; }
+
+  .mode-tabs{ display:flex; gap:8px; padding:14px 16px 0; }
+  .mode-tab{ flex:1; padding:11px; border-radius:12px; border:none; background:var(--surface); color:var(--text-dim); font-weight:700; font-size:13.5px; cursor:pointer; }
+  .mode-tab.active{ background:var(--work); color:#fff; }
+  .mode-hint{ padding:8px 16px 0; color:var(--text-dim); font-size:12px; text-align:center; }
+
+  .setup{ flex:1; display:flex; flex-direction:column; padding:14px 16px 120px; gap:14px; }
+
+  .blocks{ display:flex; flex-direction:column; gap:12px; }
+
+  .block-card{ background:var(--surface); border-radius:var(--radius); padding:14px 14px 16px; position:relative; }
+  .block-card .block-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .block-head .block-label{ font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase; }
+  .block-head .remove-btn{ background:none; border:none; color:var(--text-faint); font-size:18px; line-height:1; padding:4px 8px; cursor:pointer; border-radius:8px; }
+  .block-head .remove-btn:hover{ color:var(--danger); background:var(--surface-2); }
+
+  .field-row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .field-grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .field{ background:var(--surface-2); border-radius:12px; padding:8px 6px 10px; text-align:center; }
+  .field.span-2{ grid-column: span 2; }
+  .field .field-label{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin-bottom:6px; }
+
+  .stepper{ display:flex; align-items:center; justify-content:center; gap:4px; }
+  .stepper .step-btn{
+    width:26px; height:26px; border-radius:8px; border:none; background:var(--surface-3); color:var(--text);
+    font-size:15px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    touch-action:none; user-select:none; flex-shrink:0;
+  }
+  .stepper .step-btn:active{ background:var(--work); }
+  .stepper .value-input{
+    font-family:'Bebas Neue',sans-serif; font-size:19px; letter-spacing:.02em;
+    width:38px; text-align:center; background:transparent; border:none; color:var(--text);
+    -moz-appearance:textfield; padding:0;
+  }
+  .stepper .value-input::-webkit-outer-spin-button,
+  .stepper .value-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .stepper .unit{ font-size:10px; color:var(--text-dim); font-weight:600; margin-right:1px; }
+
+  .time-pill{
+    width:100%; background:var(--surface-3); border:none; border-radius:9px; color:var(--text);
+    font-family:'Bebas Neue',sans-serif; font-size:19px; padding:6px 0; cursor:pointer; letter-spacing:.02em;
+  }
+  .time-pill .unit{ font-size:10px; color:var(--text-dim); font-weight:600; margin-left:2px; font-family:'Inter',sans-serif; }
+
+  .exercise-list{ margin-bottom:10px; }
+  .exercise-row{ display:flex; align-items:center; gap:6px; background:var(--surface-2); border-radius:10px; padding:8px 8px 8px 10px; margin-bottom:8px; }
+  .exercise-row .ex-num{ font-family:'Bebas Neue',sans-serif; font-size:16px; color:var(--text-dim); width:16px; text-align:center; flex-shrink:0; }
+  .exercise-row input[type=text]{ flex:1; min-width:0; background:transparent; border:none; color:var(--text); font-size:13.5px; font-weight:600; outline:none; padding:4px 0; }
+  .exercise-row input[type=text]::placeholder{ color:var(--text-faint); font-weight:500; }
+  .exercise-row .time-pill{ width:64px; flex-shrink:0; padding:6px 4px; }
+  .ex-remove{ background:none; border:none; color:var(--text-faint); font-size:15px; cursor:pointer; padding:2px 3px; flex-shrink:0; }
+  .ex-remove:hover{ color:var(--danger); }
+
+  .add-exercise-btn{ width:100%; background:var(--surface-2); border:1px dashed var(--surface-3); color:var(--text-dim); border-radius:10px; padding:9px; font-size:12.5px; font-weight:700; cursor:pointer; margin-bottom:12px; }
+  .add-exercise-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .sub-field-label{ font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; font-weight:700; margin:2px 0 8px; }
+
+  .add-block-btn{ background:var(--surface); border:1.5px dashed var(--surface-3); color:var(--text-dim); border-radius:var(--radius); padding:14px; font-size:14px; font-weight:700; cursor:pointer; width:100%; }
+  .add-block-btn:hover{ border-color:var(--work); color:var(--text); }
+
+  .summary-bar{ background:var(--surface); border-radius:var(--radius); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .summary-bar .item{ text-align:center; flex:1; }
+  .summary-bar .item .num{ font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--text); line-height:1; }
+  .summary-bar .item .num.over{ color:var(--danger); }
+  .summary-bar .item .lbl{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .summary-bar .divider{ width:1px; height:32px; background:var(--surface-3); }
+
+  .limit-warning{ color:var(--danger); font-size:12.5px; text-align:center; font-weight:600; display:none; }
+  .limit-warning.show{ display:block; }
+
+  .cta-dock{ position:fixed; left:0; right:0; bottom:0; max-width:480px; margin:0 auto; padding:14px 16px calc(16px + env(safe-area-inset-bottom)); background:linear-gradient(to top, var(--bg) 60%, transparent); }
+  .start-btn{ width:100%; padding:17px; border-radius:14px; border:none; background:var(--work); color:#fff; font-size:16px; font-weight:800; letter-spacing:.02em; cursor:pointer; }
+  .start-btn:disabled{ background:var(--surface-2); color:var(--text-faint); cursor:not-allowed; }
+
+  .run{
+    position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:space-between;
+    background:var(--bg); transition:background-color .5s ease; z-index:20; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .run.active{ display:flex; }
+  .run.phase-prep{ background:var(--prep-dim); }
+  .run.phase-work{ background:var(--work-dim); }
+  .run.phase-rest{ background:var(--rest-dim); }
+  .run.phase-done{ background:var(--surface); }
+
+  .run-top{ width:100%; display:flex; justify-content:space-between; align-items:center; padding:18px 20px 0; }
+  .run-progress-text{ font-size:13px; font-weight:700; color:var(--text-dim); letter-spacing:.03em; }
+  .exit-btn{ background:rgba(255,255,255,.08); border:none; color:var(--text); width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer; }
+
+  .run-center{ display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; }
+  .ring-wrap{ position:relative; width:var(--ring-size); height:var(--ring-size); display:flex; align-items:center; justify-content:center; }
+  .ring-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .ring-bg{ fill:none; stroke:rgba(255,255,255,.08); stroke-width:5.5; }
+  .ring-fg{ fill:none; stroke-width:5.5; stroke-linecap:round; transition:stroke-dashoffset 1s linear, stroke .4s ease; }
+  .ring-fg.c-prep{ stroke:var(--prep); }
+  .ring-fg.c-work{ stroke:var(--work); }
+  .ring-fg.c-rest{ stroke:var(--rest); }
+
+  .ring-inner{ position:absolute; display:flex; flex-direction:column; align-items:center; }
+  .timer-num{ font-family:'Bebas Neue',sans-serif; font-size:min(20vw, 92px); line-height:1; letter-spacing:.02em; transition:color .4s ease; }
+  .timer-num.c-prep{ color:var(--prep); }
+  .timer-num.c-work{ color:var(--work); }
+  .timer-num.c-rest{ color:var(--rest); }
+
+  .phase-label{ margin-top:10px; font-size:15px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; text-align:center; padding:0 24px; }
+  .phase-label.c-prep{ color:var(--prep); }
+  .phase-label.c-work{ color:var(--work); }
+  .phase-label.c-rest{ color:var(--rest); }
+
+  .next-up{ margin-top:18px; font-size:13px; color:var(--text-dim); text-align:center; padding:0 24px; }
+
+  .run-controls{ display:flex; align-items:center; justify-content:center; gap:18px; padding:0 20px 34px; width:100%; }
+  .ctrl-btn{ border:none; background:var(--surface-2); color:var(--text); border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ctrl-btn.play-pause{ width:72px; height:72px; font-size:26px; background:#fff; color:#12161a; }
+  .ctrl-btn.secondary{ width:54px; height:54px; font-size:18px; }
+  .ctrl-btn.secondary.stop{ color:var(--danger); }
+
+  .done-box{ display:flex; flex-direction:column; align-items:center; text-align:center; padding:0 32px; }
+  .done-box .big-check{ font-size:52px; margin-bottom:6px; }
+  .done-box h2{ font-size:24px; margin:0 0 6px; }
+  .done-box p{ color:var(--text-dim); margin:0 0 28px; font-size:14px; }
+  .done-actions{ display:flex; gap:10px; width:100%; max-width:280px; }
+  .done-actions button{ flex:1; padding:14px; border-radius:12px; border:none; font-weight:700; cursor:pointer; font-size:14px; }
+  .done-actions .again{ background:var(--work); color:#fff; }
+  .done-actions .edit{ background:var(--surface-2); color:var(--text); }
+
+  footer.disclaimer{ text-align:center; color:var(--text-faint); font-size:11px; padding:6px 20px 4px; }
+
+  /* ---------- Wheel picker modal ---------- */
+  .wheel-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center; z-index:50; }
+  .wheel-overlay.show{ display:flex; }
+  .wheel-sheet{ width:100%; max-width:480px; background:var(--surface); border-radius:20px 20px 0 0; padding:18px 20px calc(20px + env(safe-area-inset-bottom)); }
+  .wheel-sheet-title{ text-align:center; font-size:13px; font-weight:700; color:var(--text-dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em; }
+  .wheel-number-input{
+    display:block; width:100px; margin:0 auto 10px; text-align:center;
+    font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--text);
+    background:var(--surface-2); border:1px solid var(--surface-3); border-radius:10px; padding:6px 0;
+    -moz-appearance:textfield; touch-action:manipulation;
+  }
+  .wheel-number-input::-webkit-outer-spin-button,
+  .wheel-number-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .wheel-track-wrap{ position:relative; height:220px; overflow:hidden; }
+  .wheel-highlight{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); height:44px; border-top:1px solid var(--surface-3); border-bottom:1px solid var(--surface-3); pointer-events:none; }
+  .wheel-track{ height:220px; overflow-y:scroll; scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .wheel-track::-webkit-scrollbar{ display:none; }
+  .wheel-item{ height:44px; display:flex; align-items:center; justify-content:center; scroll-snap-align:center; font-family:'Bebas Neue',sans-serif; font-size:24px; color:var(--text-faint); }
+  .wheel-item.center{ color:var(--text); font-size:28px; }
+  .wheel-unit-label{ text-align:center; font-size:12px; color:var(--text-dim); margin-top:4px; }
+  .wheel-actions{ display:flex; gap:10px; margin-top:16px; }
+  .wheel-actions button{ flex:1; padding:13px; border-radius:12px; border:none; font-weight:700; font-size:14px; cursor:pointer; }
+  .wheel-cancel{ background:var(--surface-2); color:var(--text); }
+  .wheel-confirm{ background:var(--work); color:#fff; }
+
+  @media (prefers-reduced-motion: reduce){ .ring-fg, .timer-num, .run{ transition:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div id="setupScreen">
+    <div class="ad-slot">광고 영역 (Google AdSense)</div>
+
+    <header class="top">
+      <h1>인터벌 타이머</h1>
+      <p>운동 · 휴식 시간을 설정하고 라운드를 반복하세요</p>
+    </header>
+
+    <div class="mode-tabs">
+      <button class="mode-tab" id="tabEasy" type="button">이지모드</button>
+      <button class="mode-tab" id="tabPro" type="button">프로모드</button>
+    </div>
+    <div class="mode-hint" id="modeHint"></div>
+
+    <div class="setup">
+      <div class="blocks" id="blocksContainer"></div>
+
+      <button class="add-block-btn" id="addBlockBtn" type="button">+ 구성 추가</button>
+
+      <div class="summary-bar">
+        <div class="item"><div class="num" id="totalRoundsNum">0</div><div class="lbl">총 라운드</div></div>
+        <div class="divider"></div>
+        <div class="item"><div class="num" id="totalTimeNum">0:00</div><div class="lbl">총 예상 시간</div></div>
+      </div>
+      <div class="limit-warning" id="limitWarning">라운드는 최대 20개까지 설정할 수 있어요</div>
+
+      <div class="ad-slot">광고 영역 (Google AdSense)</div>
+    </div>
+
+    <div class="cta-dock">
+      <button class="start-btn" id="startBtn" type="button">시작하기</button>
+    </div>
+  </div>
+
+  <div class="run" id="runScreen">
+    <div class="run-top">
+      <div class="run-progress-text" id="runProgressText">라운드 1/3</div>
+      <button class="exit-btn" id="exitBtn" type="button" aria-label="종료">✕</button>
+    </div>
+
+    <div class="run-center" id="runCenter">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 120 120">
+          <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+          <circle class="ring-fg" id="ringFg" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="ring-inner"><div class="timer-num" id="timerNum">3</div></div>
+      </div>
+      <div class="phase-label" id="phaseLabel">준비</div>
+      <div class="next-up" id="nextUp"></div>
+    </div>
+
+    <div class="run-controls" id="runControls">
+      <button class="ctrl-btn secondary" id="skipBtn" type="button" aria-label="다음 구간">⏭</button>
+      <button class="ctrl-btn play-pause" id="pauseBtn" type="button" aria-label="일시정지">⏸</button>
+      <button class="ctrl-btn secondary stop" id="stopBtn" type="button" aria-label="정지">⏹</button>
+    </div>
+
+    <div class="done-box" id="doneBox" style="display:none;">
+      <div class="big-check">🎉</div>
+      <h2>운동 완료!</h2>
+      <p id="doneSummary">수고하셨어요</p>
+      <div class="done-actions">
+        <button class="edit" id="doneEditBtn" type="button">설정으로</button>
+        <button class="again" id="doneAgainBtn" type="button">다시 하기</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="disclaimer">화면을 켜둔 상태로 사용해 주세요</footer>
+
+  <!-- Wheel picker modal -->
+  <div class="wheel-overlay" id="wheelOverlay">
+    <div class="wheel-sheet">
+      <div class="wheel-sheet-title" id="wheelTitle">시간</div>
+      <input type="number" inputmode="numeric" class="wheel-number-input" id="wheelNumberInput">
+      <div class="wheel-track-wrap">
+        <div class="wheel-highlight"></div>
+        <div class="wheel-track" id="wheelTrack"></div>
+      </div>
+      <div class="wheel-unit-label">초</div>
+      <div class="wheel-actions">
+        <button class="wheel-cancel" id="wheelCancelBtn" type="button">취소</button>
+        <button class="wheel-confirm" id="wheelConfirmBtn" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const MAX_TOTAL_ROUNDS = 20;
+  const MAX_EXERCISES_PER_BLOCK = 8;
+  const CIRC = 2 * Math.PI * 52;
+  const STORAGE_KEY = 'intervalTimerSettings_v3';
+  const WHEEL_ITEM_H = 44;
+
+  // ---------------- State ----------------
+  let mode = 'easy';
+
+  let easyBlocks = [ { count:1, work:60, rest:30, roundRest:60, rounds:3 } ];
+
+  let proBlocks = [
+    {
+      exercises:[ { name:'팔굽혀펴기', work:60 }, { name:'스쿼트', work:60 }, { name:'버피', work:60 } ],
+      restBetween:30, roundRest:60, rounds:3
+    }
+  ];
+
+  function loadSaved(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return;
+      const data = JSON.parse(raw);
+      if(data.mode === 'easy' || data.mode === 'pro') mode = data.mode;
+      if(Array.isArray(data.easyBlocks) && data.easyBlocks.length){
+        easyBlocks = data.easyBlocks.slice(0,1).map(b => ({
+          count: b.count || 1, work:b.work, rest:b.rest,
+          roundRest: (b.roundRest !== undefined) ? b.roundRest : b.rest,
+          rounds:b.rounds
+        }));
+      }
+      if(Array.isArray(data.proBlocks) && data.proBlocks.length) proBlocks = data.proBlocks;
+    }catch(e){ /* 저장된 값 없음/손상 시 기본값 사용 */ }
+  }
+  function saveState(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode, easyBlocks, proBlocks })); }
+    catch(e){ /* 저장 실패 시 조용히 무시 */ }
+  }
+  loadSaved();
+
+  function currentBlocks(){ return mode === 'easy' ? easyBlocks : proBlocks; }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  // ---------------- DOM refs ----------------
+  const tabEasy = document.getElementById('tabEasy');
+  const tabPro = document.getElementById('tabPro');
+  const modeHint = document.getElementById('modeHint');
+  const blocksContainer = document.getElementById('blocksContainer');
+  const addBlockBtn = document.getElementById('addBlockBtn');
+  const totalRoundsNum = document.getElementById('totalRoundsNum');
+  const totalTimeNum = document.getElementById('totalTimeNum');
+  const limitWarning = document.getElementById('limitWarning');
+  const startBtn = document.getElementById('startBtn');
+
+  function fmtTime(sec){
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec/60), s = sec%60;
+    return m + ':' + String(s).padStart(2,'0');
+  }
+
+  // ---------------- Field limits / value helpers ----------------
+  function getFieldLimits(field){
+    if(field === 'count') return { min:1, max:MAX_EXERCISES_PER_BLOCK, step:1 };
+    if(field === 'rounds') return { min:1, max:20, step:1 };
+    if(field === 'work') return { min:1, max:600, step:1 };
+    if(field === 'rest' || field === 'restBetween' || field === 'roundRest') return { min:0, max:600, step:1 };
+    return { min:0, max:600, step:1 };
+  }
+  function getValue(idx, exidx, field){
+    const b = currentBlocks()[idx];
+    return (exidx !== undefined) ? b.exercises[exidx][field] : b[field];
+  }
+  function setValue(idx, exidx, field, val){
+    const b = currentBlocks()[idx];
+    const lim = getFieldLimits(field);
+    val = clamp(Math.round(val) || 0, lim.min, lim.max);
+    if(exidx !== undefined) b.exercises[exidx][field] = val; else b[field] = val;
+    saveState();
+    return val;
+  }
+
+  function stepperHTML(field, idx, exidx, value){
+    const exAttr = exidx !== undefined ? ` data-exidx="${exidx}"` : '';
+    return `
+      <div class="stepper">
+        <button type="button" class="step-btn" data-field="${field}" data-act="minus" data-idx="${idx}"${exAttr}>−</button>
+        <input type="number" inputmode="numeric" class="value-input" data-field="${field}" data-idx="${idx}"${exAttr} value="${value}">
+        <button type="button" class="step-btn" data-field="${field}" data-act="plus" data-idx="${idx}"${exAttr}>+</button>
+      </div>`;
+  }
+  function timeFieldHTML(field, idx, exidx, value){
+    const exAttr = exidx !== undefined ? ` data-exidx="${exidx}"` : '';
+    return `<button type="button" class="time-pill" data-role="timeField" data-field="${field}" data-idx="${idx}"${exAttr}>${value}<span class="unit">초</span></button>`;
+  }
+
+  // ---------------- Sequence engine ----------------
+  function normalizeBlock(block){
+    if(mode === 'easy'){
+      const exercises = [];
+      for(let i=0;i<block.count;i++) exercises.push({ name:null, work:block.work });
+      return { exercises, restBetween:block.rest, roundRest:block.roundRest, rounds:block.rounds };
+    }
+    return {
+      exercises: block.exercises.map(e=>({ name:e.name, work:e.work })),
+      restBetween: block.restBetween, roundRest: block.roundRest, rounds: block.rounds
+    };
+  }
+
+  function buildSequence(){
+    const blocksArr = currentBlocks();
+    const seq = [{ type:'prep', dur:3 }];
+    blocksArr.forEach((raw, bi) => {
+      const b = normalizeBlock(raw);
+      for(let r=0; r<b.rounds; r++){
+        b.exercises.forEach((ex, ei) => {
+          const exName = mode === 'pro' ? (ex.name || '').trim() : '';
+          seq.push({
+            type:'work', dur:ex.work, exName,
+            label: exName ? exName : (mode==='pro' ? ('운동 '+(ei+1)) : '운동'),
+            blockIdx:bi, roundIdx:r, roundsInBlock:b.rounds, blockCount:blocksArr.length
+          });
+          const isLastEx = ei === b.exercises.length - 1;
+          if(!isLastEx && b.restBetween > 0){
+            seq.push({ type:'rest', subtype:'between', dur:b.restBetween, blockIdx:bi, roundIdx:r, roundsInBlock:b.rounds, blockCount:blocksArr.length });
+          }
+        });
+        const isVeryLast = (bi === blocksArr.length-1) && (r === b.rounds-1);
+        if(b.roundRest > 0 && !isVeryLast){
+          seq.push({ type:'rest', subtype:'round', dur:b.roundRest, blockIdx:bi, roundIdx:r, roundsInBlock:b.rounds, blockCount:blocksArr.length });
+        }
+      }
+    });
+    return seq;
+  }
+
+  function totalRoundsCount(){ return currentBlocks().reduce((s,b)=> s + b.rounds, 0); }
+  function totalSecondsCount(){ return buildSequence().filter(p=>p.type!=='prep').reduce((s,p)=> s + p.dur, 0); }
+
+  // ---------------- Render: mode tabs ----------------
+  function renderModeTabs(){
+    tabEasy.classList.toggle('active', mode==='easy');
+    tabPro.classList.toggle('active', mode==='pro');
+    modeHint.textContent = mode==='easy'
+      ? '운동 개수 · 운동시간 · 휴식시간 · 라운드휴식 · 라운드만 정하면 돼요'
+      : '한 라운드에 운동을 여러 개 넣고, 운동마다 이름과 시간을 따로 설정해요';
+    addBlockBtn.style.display = mode === 'easy' ? 'none' : '';
+  }
+  tabEasy.addEventListener('click', () => { mode='easy'; saveState(); renderModeTabs(); renderBlocks(); });
+  tabPro.addEventListener('click', () => { mode='pro'; saveState(); renderModeTabs(); renderBlocks(); });
+
+  // ---------------- Render: blocks ----------------
+  function renderBlocks(){
+    blocksContainer.innerHTML = '';
+    const blocksArr = currentBlocks();
+
+    blocksArr.forEach((b, idx) => {
+      const card = document.createElement('div');
+      card.className = 'block-card';
+
+      if(mode === 'easy'){
+        card.innerHTML = `
+          <div class="block-head">
+            <div class="block-label">구성 ${idx+1}</div>
+            ${blocksArr.length > 1 ? '<button class="remove-btn" data-role="removeBlock" data-idx="'+idx+'" type="button" aria-label="구성 삭제">✕</button>' : ''}
+          </div>
+          <div class="field-grid-2">
+            <div class="field"><div class="field-label">운동 개수</div>${stepperHTML('count', idx, undefined, b.count)}</div>
+            <div class="field"><div class="field-label">라운드</div>${stepperHTML('rounds', idx, undefined, b.rounds)}</div>
+            <div class="field"><div class="field-label">운동 시간</div>${timeFieldHTML('work', idx, undefined, b.work)}</div>
+            <div class="field"><div class="field-label">휴식 시간</div>${timeFieldHTML('rest', idx, undefined, b.rest)}</div>
+            <div class="field span-2"><div class="field-label">라운드 휴식시간</div>${timeFieldHTML('roundRest', idx, undefined, b.roundRest)}</div>
+          </div>
+        `;
+      } else {
+        const exRows = b.exercises.map((ex, ei) => `
+          <div class="exercise-row">
+            <div class="ex-num">${ei+1}</div>
+            <input type="text" maxlength="20" placeholder="운동 ${ei+1} (이름 선택)"
+                   value="${(ex.name||'').replace(/"/g,'&quot;')}"
+                   data-role="exName" data-idx="${idx}" data-exidx="${ei}">
+            ${timeFieldHTML('work', idx, ei, ex.work)}
+            ${b.exercises.length > 1 ? '<button class="ex-remove" data-role="removeEx" data-idx="'+idx+'" data-exidx="'+ei+'" type="button" aria-label="운동 삭제">✕</button>' : ''}
+          </div>
+        `).join('');
+
+        card.innerHTML = `
+          <div class="block-head">
+            <div class="block-label">구성 ${idx+1}</div>
+            ${blocksArr.length > 1 ? '<button class="remove-btn" data-role="removeBlock" data-idx="'+idx+'" type="button" aria-label="구성 삭제">✕</button>' : ''}
+          </div>
+          <div class="exercise-list">${exRows}</div>
+          <button class="add-exercise-btn" data-role="addEx" data-idx="${idx}" type="button" ${b.exercises.length >= MAX_EXERCISES_PER_BLOCK ? 'disabled' : ''}>
+            + 운동 추가 (${b.exercises.length}/${MAX_EXERCISES_PER_BLOCK})
+          </button>
+          <div class="sub-field-label">운동 사이 휴식 · 라운드 휴식 · 라운드 수</div>
+          <div class="field-row">
+            <div class="field"><div class="field-label">운동간휴식</div>${timeFieldHTML('restBetween', idx, undefined, b.restBetween)}</div>
+            <div class="field"><div class="field-label">라운드휴식</div>${timeFieldHTML('roundRest', idx, undefined, b.roundRest)}</div>
+            <div class="field"><div class="field-label">라운드</div>${stepperHTML('rounds', idx, undefined, b.rounds)}</div>
+          </div>
+        `;
+      }
+      blocksContainer.appendChild(card);
+    });
+    updateSummary();
+  }
+
+  function updateSummary(){
+    const tr = totalRoundsCount();
+    totalRoundsNum.textContent = tr;
+    totalRoundsNum.classList.toggle('over', tr > MAX_TOTAL_ROUNDS);
+    totalTimeNum.textContent = fmtTime(totalSecondsCount());
+    limitWarning.classList.toggle('show', tr > MAX_TOTAL_ROUNDS);
+    startBtn.disabled = tr > MAX_TOTAL_ROUNDS || tr === 0;
+  }
+
+  // ---------------- Clicks: structural + time-pill ----------------
+  blocksContainer.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if(!btn) return;
+    const role = btn.dataset.role;
+    if(!role) return;
+    const idx = btn.dataset.idx !== undefined ? parseInt(btn.dataset.idx,10) : undefined;
+    const blocksArr = currentBlocks();
+
+    if(role === 'timeField'){
+      const exidx = btn.dataset.exidx !== undefined ? parseInt(btn.dataset.exidx,10) : undefined;
+      openWheel(btn.dataset.field, idx, exidx);
+      return;
+    }
+    if(role === 'removeBlock'){ blocksArr.splice(idx,1); saveState(); renderBlocks(); return; }
+    if(role === 'addEx'){
+      const b = blocksArr[idx];
+      if(b.exercises.length < MAX_EXERCISES_PER_BLOCK){ b.exercises.push({ name:'', work:30 }); saveState(); renderBlocks(); }
+      return;
+    }
+    if(role === 'removeEx'){
+      const b = blocksArr[idx];
+      const exidx = parseInt(btn.dataset.exidx,10);
+      if(b.exercises.length > 1){ b.exercises.splice(exidx,1); saveState(); renderBlocks(); }
+      return;
+    }
+  });
+
+  blocksContainer.addEventListener('change', (e) => {
+    const nameInput = e.target.closest('input[data-role="exName"]');
+    if(nameInput){
+      const idx = parseInt(nameInput.dataset.idx,10);
+      const exidx = parseInt(nameInput.dataset.exidx,10);
+      currentBlocks()[idx].exercises[exidx].name = nameInput.value.trim();
+      saveState();
+      return;
+    }
+    const valInput = e.target.closest('input.value-input');
+    if(valInput){
+      const idx = parseInt(valInput.dataset.idx,10);
+      const exidx = valInput.dataset.exidx !== undefined ? parseInt(valInput.dataset.exidx,10) : undefined;
+      const field = valInput.dataset.field;
+      const next = setValue(idx, exidx, field, parseInt(valInput.value,10));
+      valInput.value = next;
+      updateSummary();
+    }
+  });
+  blocksContainer.addEventListener('focus', (e) => {
+    const el = e.target.closest('input.value-input');
+    if(el) el.select();
+  }, true);
+
+  addBlockBtn.addEventListener('click', () => {
+    if(mode === 'easy') easyBlocks.push({ count:1, work:30, rest:15, roundRest:60, rounds:1 });
+    else proBlocks.push({ exercises:[ { name:'', work:30 }, { name:'', work:30 } ], restBetween:15, roundRest:60, rounds:1 });
+    saveState(); renderBlocks();
+  });
+
+  // ---------------- Press & hold steppers (rounds / count only) ----------------
+  function performStep(btn){
+    const field = btn.dataset.field, act = btn.dataset.act;
+    const idx = parseInt(btn.dataset.idx,10);
+    const exidx = btn.dataset.exidx !== undefined ? parseInt(btn.dataset.exidx,10) : undefined;
+    const lim = getFieldLimits(field);
+    const cur = getValue(idx, exidx, field);
+    const next = setValue(idx, exidx, field, cur + (act==='plus' ? lim.step : -lim.step));
+    const input = btn.parentElement.querySelector('.value-input');
+    if(input) input.value = next;
+    updateSummary();
+  }
+  let holdTimeout=null, holdInterval=null;
+  blocksContainer.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.step-btn');
+    if(!btn) return;
+    performStep(btn);
+    clearTimeout(holdTimeout); clearInterval(holdInterval);
+    holdTimeout = setTimeout(() => { holdInterval = setInterval(() => performStep(btn), 80); }, 380);
+  });
+  function stopHold(){ clearTimeout(holdTimeout); clearInterval(holdInterval); holdTimeout=null; holdInterval=null; }
+  document.addEventListener('pointerup', stopHold);
+  document.addEventListener('pointercancel', stopHold);
+
+  // ---------------- Wheel picker (초 선택) ----------------
+  const wheelOverlay = document.getElementById('wheelOverlay');
+  const wheelTitle = document.getElementById('wheelTitle');
+  const wheelTrack = document.getElementById('wheelTrack');
+  const wheelNumberInput = document.getElementById('wheelNumberInput');
+  const wheelCancelBtn = document.getElementById('wheelCancelBtn');
+  const wheelConfirmBtn = document.getElementById('wheelConfirmBtn');
+  const FIELD_TITLES = { work:'운동 시간', rest:'휴식 시간', restBetween:'운동 사이 휴식', roundRest:'라운드 휴식' };
+
+  let wheelState = null;
+
+  function buildWheelItems(min, max, current){
+    wheelTrack.innerHTML = '';
+    for(let v=min; v<=max; v++){
+      const div = document.createElement('div');
+      div.className = 'wheel-item';
+      div.textContent = v;
+      div.dataset.val = v;
+      wheelTrack.appendChild(div);
+    }
+    const pad = (110 - WHEEL_ITEM_H/2);
+    wheelTrack.style.paddingTop = pad + 'px';
+    wheelTrack.style.paddingBottom = pad + 'px';
+    requestAnimationFrame(() => {
+      wheelTrack.scrollTop = (current - min) * WHEEL_ITEM_H;
+      updateWheelHighlight();
+    });
+  }
+
+  function updateWheelHighlight(){
+    const items = wheelTrack.children;
+    const centerY = wheelTrack.scrollTop + wheelTrack.clientHeight/2;
+    let closest = null, closestDist = Infinity;
+    for(const item of items){
+      const itemCenter = item.offsetTop + WHEEL_ITEM_H/2;
+      const dist = Math.abs(itemCenter - centerY);
+      const norm = dist / WHEEL_ITEM_H;
+      item.style.opacity = Math.max(0.25, 1 - norm*0.4).toFixed(2);
+      item.classList.toggle('center', norm < 0.5);
+      if(dist < closestDist){ closestDist = dist; closest = item; }
+    }
+    const val = closest ? parseInt(closest.dataset.val,10) : null;
+    if(val !== null && document.activeElement !== wheelNumberInput) wheelNumberInput.value = val;
+    return val;
+  }
+
+  let wheelScrollTimeout = null;
+  wheelTrack.addEventListener('scroll', () => {
+    updateWheelHighlight();
+    clearTimeout(wheelScrollTimeout);
+    wheelScrollTimeout = setTimeout(updateWheelHighlight, 80);
+  });
+
+  wheelNumberInput.addEventListener('change', () => {
+    if(!wheelState) return;
+    const lim = getFieldLimits(wheelState.field);
+    let val = parseInt(wheelNumberInput.value, 10);
+    if(isNaN(val)) val = lim.min;
+    val = clamp(val, lim.min, lim.max);
+    wheelNumberInput.value = val;
+    wheelTrack.scrollTop = (val - lim.min) * WHEEL_ITEM_H;
+    updateWheelHighlight();
+  });
+  wheelNumberInput.addEventListener('focus', () => wheelNumberInput.select());
+
+  // 모바일에서 단순 탭으로 키보드가 안 올라오는 기기 대응: 더블탭/더블클릭 시 강제로 포커스
+  let lastNumberTapTime = 0;
+  wheelNumberInput.addEventListener('click', () => {
+    const now = Date.now();
+    if(now - lastNumberTapTime < 400){
+      wheelNumberInput.focus();
+      wheelNumberInput.select();
+    }
+    lastNumberTapTime = now;
+  });
+  wheelNumberInput.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    wheelNumberInput.focus();
+    wheelNumberInput.select();
+  });
+
+  function openWheel(field, idx, exidx){
+    const lim = getFieldLimits(field);
+    const current = clamp(getValue(idx, exidx, field), lim.min, lim.max);
+    wheelState = { field, idx, exidx };
+    wheelTitle.textContent = FIELD_TITLES[field] || '시간';
+    wheelNumberInput.value = current;
+    buildWheelItems(lim.min, lim.max, current);
+    wheelOverlay.classList.add('show');
+  }
+  function closeWheel(){ wheelOverlay.classList.remove('show'); wheelState = null; }
+
+  wheelCancelBtn.addEventListener('click', closeWheel);
+  wheelOverlay.addEventListener('click', (e) => { if(e.target === wheelOverlay) closeWheel(); });
+  wheelConfirmBtn.addEventListener('click', () => {
+    if(!wheelState) return;
+    const val = updateWheelHighlight();
+    if(val !== null) setValue(wheelState.idx, wheelState.exidx, wheelState.field, val);
+    renderBlocks();
+    closeWheel();
+  });
+
+  renderModeTabs();
+  renderBlocks();
+
+  // ================= TTS (음성 안내) =================
+  let voices = [];
+  function loadVoices(){ voices = ('speechSynthesis' in window) ? speechSynthesis.getVoices() : []; }
+  if('speechSynthesis' in window){
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
+  function hasBatchim(ch){
+    const code = ch.charCodeAt(0) - 0xAC00;
+    if(code < 0 || code > 11171) return false;
+    return code % 28 !== 0;
+  }
+  function withParticle(word){
+    const last = word[word.length-1];
+    return word + (hasBatchim(last) ? '을' : '를');
+  }
+  function ttsForPhase(phase){
+    if(phase.type === 'work'){
+      if(mode === 'pro' && phase.exName) return withParticle(phase.exName) + ' 시작합니다';
+      return '운동을 시작합니다';
+    }
+    if(phase.type === 'rest') return '휴식시간입니다';
+    return null;
+  }
+  function speak(text){
+    if(!text || !('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'ko-KR';
+    utter.rate = 1.03;
+    const koVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ko'));
+    if(koVoice) utter.voice = koVoice;
+    speechSynthesis.speak(utter);
+  }
+
+  // ================= Tick beep (마지막 3초 카운트다운, Web Audio API) =================
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function beep(freq, duration, vol){
+    if(!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq; gain.gain.value = vol;
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.start(now); osc.stop(now + duration);
+  }
+  function tickBeep(){ beep(880, 0.09, 0.16); }
+
+  // ================= RUN ENGINE =================
+  const runScreen = document.getElementById('runScreen');
+  const runCenter = document.getElementById('runCenter');
+  const runControls = document.getElementById('runControls');
+  const doneBox = document.getElementById('doneBox');
+  const timerNum = document.getElementById('timerNum');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const ringFg = document.getElementById('ringFg');
+  const runProgressText = document.getElementById('runProgressText');
+  const nextUp = document.getElementById('nextUp');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const skipBtn = document.getElementById('skipBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const exitBtn = document.getElementById('exitBtn');
+  const doneEditBtn = document.getElementById('doneEditBtn');
+  const doneAgainBtn = document.getElementById('doneAgainBtn');
+
+  ringFg.style.strokeDasharray = CIRC;
+
+  let sequence = [], seqPos = 0, remaining = 0, timerId = null, paused = false;
+  let tickedThisSecond = new Set();
+
+  function setRing(colorClass){
+    ringFg.classList.remove('c-prep','c-work','c-rest'); ringFg.classList.add(colorClass);
+    timerNum.classList.remove('c-prep','c-work','c-rest'); timerNum.classList.add(colorClass);
+    phaseLabel.classList.remove('c-prep','c-work','c-rest'); phaseLabel.classList.add(colorClass);
+  }
+  function phaseText(phase){
+    if(phase.type === 'prep') return '준비';
+    if(phase.type === 'work') return phase.label;
+    return phase.subtype === 'round' ? '라운드 휴식' : '휴식';
+  }
+  function describeNext(pos){
+    for(let i=pos+1;i<sequence.length;i++){
+      const s = sequence[i];
+      if(s.type === 'work') return '다음: ' + s.label + ' ' + s.dur + '초';
+      if(s.type === 'rest') return '다음: ' + (s.subtype==='round' ? '라운드 휴식' : '휴식') + ' ' + s.dur + '초';
+    }
+    return '다음: 종료';
+  }
+
+  function startPhase(pos){
+    const phase = sequence[pos];
+    remaining = phase.dur;
+    tickedThisSecond = new Set();
+    runScreen.classList.remove('phase-prep','phase-work','phase-rest','phase-done');
+    doneBox.style.display = 'none';
+    runCenter.style.display = 'flex';
+    runControls.style.display = 'flex';
+
+    if(phase.type === 'prep'){ runScreen.classList.add('phase-prep'); setRing('c-prep'); runProgressText.textContent = '곧 시작합니다'; }
+    else if(phase.type === 'work'){ runScreen.classList.add('phase-work'); setRing('c-work'); runProgressText.textContent = `라운드 ${phase.roundIdx+1}/${phase.roundsInBlock}`; speak(ttsForPhase(phase)); }
+    else if(phase.type === 'rest'){ runScreen.classList.add('phase-rest'); setRing('c-rest'); runProgressText.textContent = `라운드 ${phase.roundIdx+1}/${phase.roundsInBlock}`; speak(ttsForPhase(phase)); }
+
+    phaseLabel.textContent = phaseText(phase);
+    nextUp.textContent = describeNext(pos);
+    renderTick(phase.dur, phase.dur);
+  }
+
+  function renderTick(rem, dur){
+    timerNum.textContent = rem;
+    const ratio = dur > 0 ? rem/dur : 0;
+    ringFg.style.strokeDashoffset = CIRC * (1 - ratio);
+    if(rem <= 3 && rem > 0 && !tickedThisSecond.has(rem)){ tickBeep(); tickedThisSecond.add(rem); }
+  }
+
+  function tick(){
+    if(paused) return;
+    remaining -= 1;
+    const phase = sequence[seqPos];
+    if(remaining > 0) renderTick(remaining, phase.dur);
+    else { renderTick(0, phase.dur); advance(); }
+  }
+  function advance(){
+    seqPos += 1;
+    if(seqPos >= sequence.length){ finishRun(); return; }
+    startPhase(seqPos);
+  }
+  function finishRun(){
+    clearInterval(timerId); timerId = null;
+    speak('운동을 종료합니다. 수고하셨습니다.');
+    runScreen.classList.remove('phase-prep','phase-work','phase-rest');
+    runScreen.classList.add('phase-done');
+    runCenter.style.display = 'none';
+    runControls.style.display = 'none';
+    doneBox.style.display = 'flex';
+    document.getElementById('doneSummary').textContent = `총 ${totalRoundsCount()}라운드 · ${fmtTime(totalSecondsCount())} 완료`;
+  }
+  function startRun(){
+    ensureAudio();
+    sequence = buildSequence();
+    seqPos = 0; paused = false;
+    pauseBtn.textContent = '⏸';
+    runScreen.classList.add('active');
+    startPhase(0);
+    clearInterval(timerId);
+    timerId = setInterval(tick, 1000);
+  }
+  function stopRun(){
+    clearInterval(timerId); timerId = null;
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+    runScreen.classList.remove('active');
+  }
+
+  startBtn.addEventListener('click', startRun);
+  pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶' : '⏸'; });
+  skipBtn.addEventListener('click', () => { if(timerId) advance(); });
+  stopBtn.addEventListener('click', stopRun);
+  exitBtn.addEventListener('click', stopRun);
+  doneEditBtn.addEventListener('click', stopRun);
+  doneAgainBtn.addEventListener('click', startRun);
+
+})();
+</script>
+
+</body>
+</html>
